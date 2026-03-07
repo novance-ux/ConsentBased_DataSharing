@@ -1,0 +1,18 @@
+[project]
+name = "consentchain-contracts"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "algorand-python>=2.0.0,<3.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "algorand-python-testing>=0.4.0",
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23",
+    "algokit-utils>=3.0,<5.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

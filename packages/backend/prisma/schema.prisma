@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String   @id @default(cuid())
+  walletAddress  String   @unique
+  role           String   @default("student")
+  name           String?
+  organization   String?
+  email          String?
+  credentialAsaId String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  dataUploads     DataUpload[]
+  sentRequests    ConsentRequest[] @relation("RequesterRequests")
+  receivedRequests ConsentRequest[] @relation("StudentRequests")
+  auditEntries    AuditEntry[]
+}
+
+model DataUpload {
+  id              String   @id @default(cuid())
+  ownerId         String
+  owner           User     @relation(fields: [ownerId], references: [id])
+  category        String   @default("resume")
+  fileName        String
+  fileType        String
+  fileSizeBytes   Int
+  ipfsCid         String
+  encryptedAesKey String
+  ivHex           String
+  description     String?
+  createdAt       DateTime @default(now())
+
+  consentRequests ConsentRequest[]
+}
+
+model ConsentRequest {
+  id              String   @id @default(cuid())
+  dataUploadId    String?
+  dataUpload      DataUpload? @relation(fields: [dataUploadId], references: [id])
+  studentId       String
+  student         User     @relation("StudentRequests", fields: [studentId], references: [id])
+  requesterId     String
+  requester       User     @relation("RequesterRequests", fields: [requesterId], references: [id])
+  dataCategory    String
+  message         String
+  requestedExpiry DateTime?
+  status          String   @default("pending")
+  consentAsaId    String?
+  txnId           String?
+  aiSuggestion    String?
+  createdAt       DateTime @default(now())
+  respondedAt     DateTime?
+  updatedAt       DateTime @updatedAt
+}
+
+model AuditEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  action      String
+  resourceId  String?
+  txnId       String?
+  metadata    String?
+  createdAt   DateTime @default(now())
+}
+
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  address   String
+  nonce     String
+  expiresAt DateTime
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

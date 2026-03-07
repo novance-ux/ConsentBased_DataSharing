@@ -1,0 +1,16 @@
+{
+  "name": "consentchain",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/frontend",
+    "packages/backend"
+  ],
+  "scripts": {
+    "dev:frontend": "npm run dev -w packages/frontend",
+    "dev:backend": "npm run dev -w packages/backend",
+    "build": "npm run build -w packages/frontend && npm run build -w packages/backend",
+    "db:push": "npm run db:push -w packages/backend",
+    "db:studio": "npm run db:studio -w packages/backend"
+  }
+}
