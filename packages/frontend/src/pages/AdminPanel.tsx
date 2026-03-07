@@ -5,19 +5,50 @@ import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
-import type { ApiResponse, User } from '@/types'
+import type { ApiResponse, User, UserProfile } from '@/types'
 
 export function AdminPanel() {
   const { activeAccount } = useWallet()
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, setAuth, setDemoMode } = useAuthStore()
   const [studentAddress, setStudentAddress] = useState('')
   const [studentId, setStudentId] = useState('')
   const queryClient = useQueryClient()
+  const [loggingIn, setLoggingIn] = useState(false)
+
+  async function handleDemoLogin() {
+    setLoggingIn(true)
+    try {
+      const res = await api.post<ApiResponse<{ token: string; user: UserProfile }>>('/v1/auth/demo-login', { role: 'ADMIN' })
+      setAuth(res.data.token, res.data.user)
+      setDemoMode(true)
+      toast.success(`Logged in as ${res.data.user.name || 'Admin'}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoggingIn(false)
+    }
+  }
 
   if (!isAuthenticated && !activeAccount) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Please connect your wallet or use demo login to access the Admin Panel.</p>
+      <div className="flex flex-col items-center justify-center py-20 gap-6">
+        <div className="rounded-xl border border-border bg-card p-8 text-center max-w-md shadow-sm">
+          <div className="text-4xl mb-4">⚙️</div>
+          <h2 className="text-xl font-bold text-foreground">Admin Panel</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Issue student credentials as blockchain NFTs and manage platform settings — powered by Algorand smart contracts.
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              onClick={handleDemoLogin}
+              disabled={loggingIn}
+              className="w-full rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {loggingIn ? 'Logging in...' : '🚀 Quick Demo Login as Admin'}
+            </button>
+            <p className="text-xs text-muted-foreground">Or connect your Algorand wallet using the buttons in the header</p>
+          </div>
+        </div>
       </div>
     )
   }

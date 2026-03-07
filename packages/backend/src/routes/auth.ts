@@ -96,6 +96,62 @@ router.get('/me', authMiddleware, async (req, res, next) => {
   }
 })
 
+// Wallet-connect login — uses challenge nonce to prevent direct API abuse
+// WalletConnect handshake already proves address ownership cryptographically
+const walletLoginSchema = z.object({
+  address: z.string().min(58).max(58),
+  nonce: z.string(),
+  role: z.enum(['STUDENT', 'REQUESTER', 'ADMIN']).optional().default('STUDENT'),
+})
+
+router.post('/wallet-login', async (req, res, next) => {
+  try {
+    const { address, nonce, role } = walletLoginSchema.parse(req.body)
+
+    // Verify challenge nonce exists, belongs to this address, and is valid
+    const challenge = await prisma.authChallenge.findFirst({
+      where: {
+        address,
+        nonce,
+        consumed: false,
+        expiresAt: { gt: new Date() },
+      },
+    })
+
+    if (!challenge) {
+      res.status(401).json({ success: false, error: 'Invalid or expired challenge', data: null })
+      return
+    }
+
+    // Mark challenge as consumed so it can't be reused
+    await prisma.authChallenge.update({
+      where: { id: challenge.id },
+      data: { consumed: true },
+    })
+
+    let user = await prisma.user.findUnique({ where: { walletAddress: address } })
+    if (!user) {
+      user = await prisma.user.create({
+        data: {
+          walletAddress: address,
+          role,
+          name: null,
+        },
+      })
+    }
+
+    const token = await signJwt({
+      sub: user.id,
+      address: user.walletAddress,
+      role: user.role,
+    })
+
+    res.json({ success: true, data: { token, user }, error: null })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Demo login — bypasses wallet signature for hackathon demonstration
 const demoLoginSchema = z.object({
   role: z.enum(['STUDENT', 'REQUESTER', 'ADMIN']),

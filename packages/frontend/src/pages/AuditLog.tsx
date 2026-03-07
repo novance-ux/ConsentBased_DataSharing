@@ -147,7 +147,7 @@ export function AuditLog() {
                         <p>
                           Txn:{' '}
                           <a
-                            href={`https://testnet.explorer.perawallet.app/tx/${entry.txnId}`}
+                            href={meta.explorerUrl || `https://lora.algokit.io/testnet/transaction/${entry.txnId}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:underline"

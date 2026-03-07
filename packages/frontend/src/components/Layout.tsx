@@ -2,6 +2,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { WalletConnect } from './WalletConnect'
 import { useWallet } from '@txnlab/use-wallet-react'
 import { useAuthStore } from '@/stores/authStore'
+import { shortenAddress } from '@/lib/algorand'
 
 const navLinks = [
   { path: '/', label: 'Home' },
@@ -18,6 +19,16 @@ export function Layout() {
   const { isAuthenticated, user, demoMode, clearAuth } = useAuthStore()
 
   function handleLogout() {
+    if (isAuthenticated && !demoMode && activeAccount) {
+      // Wallet-authenticated: just clear auth, keep wallet connected
+      clearAuth()
+    } else {
+      clearAuth()
+    }
+    navigate('/')
+  }
+
+  function handleDisconnectAll() {
     clearAuth()
     navigate('/')
   }
@@ -27,9 +38,14 @@ export function Layout() {
       <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4">
           <div className="flex items-center gap-8">
-            <Link to="/" className="text-xl font-bold text-primary">
-              ConsentChain
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link to="/" className="text-xl font-bold text-primary">
+                ConsentChain
+              </Link>
+              <span className="rounded-full bg-green-500/10 px-2 py-0.5 text-[10px] font-bold text-green-600 uppercase tracking-wider border border-green-500/20">
+                Testnet
+              </span>
+            </div>
             <nav className="hidden md:flex items-center gap-1">
               {navLinks.map((link) => (
                 <Link
@@ -50,12 +66,20 @@ export function Layout() {
             {isAuthenticated && user ? (
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-foreground">{user.name || 'User'}</p>
+                  <p className="text-sm font-medium text-foreground">
+                    {user.name || (activeAccount ? shortenAddress(activeAccount.address) : 'User')}
+                  </p>
                   <p className="text-xs text-muted-foreground capitalize">
                     {user.role}
                     {demoMode && ' (demo)'}
+                    {!demoMode && activeAccount && ' (wallet)'}
                   </p>
                 </div>
+                {!demoMode && activeAccount && (
+                  <span className="hidden sm:inline rounded-full bg-green-500/20 px-2 py-0.5 text-xs text-green-500">
+                    {shortenAddress(activeAccount.address)}
+                  </span>
+                )}
                 <button
                   onClick={handleLogout}
                   className="rounded-md border border-border px-3 py-1.5 text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
@@ -64,14 +88,7 @@ export function Layout() {
                 </button>
               </div>
             ) : (
-              <>
-                {activeAccount && (
-                  <span className="hidden sm:inline text-sm text-muted-foreground">
-                    Connected
-                  </span>
-                )}
-                <WalletConnect />
-              </>
+              <WalletConnect />
             )}
           </div>
         </div>

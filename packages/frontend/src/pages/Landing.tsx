@@ -155,9 +155,9 @@ export function Landing() {
             icon: '🔗',
           },
           {
-            title: 'AI-Powered Suggestions',
-            description: 'Our AI agent analyzes requesters and suggests optimal consent policies.',
-            icon: '🤖',
+            title: 'Encrypted Storage',
+            description: 'Data is encrypted client-side with AES-256-GCM before upload. The server never sees plaintext.',
+            icon: '🔒',
           },
           {
             title: 'Full Audit Trail',
@@ -171,6 +171,42 @@ export function Landing() {
             <p className="mt-2 text-sm text-muted-foreground">{feature.description}</p>
           </div>
         ))}
+      </motion.div>
+
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, delay: 0.5 }}
+        className="mt-12 w-full max-w-4xl"
+      >
+        <div className="rounded-xl border border-green-500/20 bg-green-500/5 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
+              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+            </span>
+            <h3 className="text-sm font-bold text-green-700 uppercase tracking-wider">Algorand Testnet — Live Smart Contracts</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { name: 'CredentialIssuer', appId: 756729714, desc: 'Mints student credential NFTs' },
+              { name: 'ConsentManager', appId: 756729717, desc: 'Creates & revokes consent NFTs' },
+              { name: 'AccessLogger', appId: 756729729, desc: 'Immutable access audit trail' },
+            ].map((c) => (
+              <a
+                key={c.appId}
+                href={`https://lora.algokit.io/testnet/application/${c.appId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block rounded-lg border border-border bg-card p-4 hover:border-primary/40 transition-colors group"
+              >
+                <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors">{c.name}</p>
+                <p className="text-xs text-muted-foreground mt-1">{c.desc}</p>
+                <p className="text-xs font-mono text-primary mt-2">App ID: {c.appId} ↗</p>
+              </a>
+            ))}
+          </div>
+        </div>
       </motion.div>
 
       <motion.div

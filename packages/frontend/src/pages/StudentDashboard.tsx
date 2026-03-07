@@ -6,19 +6,50 @@ import toast from 'react-hot-toast'
 import { useAuthStore } from '@/stores/authStore'
 import { api } from '@/lib/api'
 import { generateAesKey, encryptFile, exportKey, arrayBufferToBase64, uint8ArrayToHex } from '@/lib/crypto'
-import type { ApiResponse, DataUpload, ConsentRequest, AuditEntry } from '@/types'
+import type { ApiResponse, DataUpload, ConsentRequest, AuditEntry, UserProfile } from '@/types'
 
 type Tab = 'data' | 'requests' | 'consents' | 'audit'
 
 export function StudentDashboard() {
   const { activeAccount } = useWallet()
-  const { isAuthenticated, user } = useAuthStore()
+  const { isAuthenticated, user, setAuth, setDemoMode } = useAuthStore()
   const [activeTab, setActiveTab] = useState<Tab>('data')
+  const [loggingIn, setLoggingIn] = useState(false)
+
+  async function handleDemoLogin() {
+    setLoggingIn(true)
+    try {
+      const res = await api.post<ApiResponse<{ token: string; user: UserProfile }>>('/v1/auth/demo-login', { role: 'STUDENT' })
+      setAuth(res.data.token, res.data.user)
+      setDemoMode(true)
+      toast.success(`Logged in as ${res.data.user.name || 'Student'}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Login failed')
+    } finally {
+      setLoggingIn(false)
+    }
+  }
 
   if (!isAuthenticated && !activeAccount) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <p className="text-muted-foreground">Please connect your wallet or use demo login to access the Student Dashboard.</p>
+      <div className="flex flex-col items-center justify-center py-20 gap-6">
+        <div className="rounded-xl border border-border bg-card p-8 text-center max-w-md shadow-sm">
+          <div className="text-4xl mb-4">🎓</div>
+          <h2 className="text-xl font-bold text-foreground">Student Dashboard</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Manage your data, review consent requests, and track all access events on the Algorand blockchain.
+          </p>
+          <div className="mt-6 flex flex-col gap-3">
+            <button
+              onClick={handleDemoLogin}
+              disabled={loggingIn}
+              className="w-full rounded-lg bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50"
+            >
+              {loggingIn ? 'Logging in...' : '🚀 Quick Demo Login as Student'}
+            </button>
+            <p className="text-xs text-muted-foreground">Or connect your Algorand wallet using the buttons in the header</p>
+          </div>
+        </div>
       </div>
     )
   }
@@ -284,6 +315,14 @@ function ConsentRequestsSection() {
                     {req.requester?.name || 'Unknown'} — {req.dataCategory}
                   </p>
                   <p className="text-xs text-muted-foreground">{req.message}</p>
+                  {req.txnId && (
+                    <a href={`https://lora.algokit.io/testnet/transaction/${req.txnId}`} target="_blank" rel="noreferrer" className="text-xs text-primary hover:underline">
+                      View on Algorand ↗
+                    </a>
+                  )}
+                  {req.consentAsaId && (
+                    <span className="ml-2 text-xs text-muted-foreground">ASA #{req.consentAsaId}</span>
+                  )}
                 </div>
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                   req.status === 'APPROVED' ? 'bg-green-500/10 text-green-600' : 'bg-red-500/10 text-red-500'

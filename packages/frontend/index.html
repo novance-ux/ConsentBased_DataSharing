@@ -8,6 +8,12 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Polyfills required by @perawallet/connect and @blockshake/defly-connect
+      // (WalletConnect uses Node.js globals not available in browser)
+      if (typeof globalThis.global === 'undefined') globalThis.global = globalThis;
+      if (typeof globalThis.process === 'undefined') globalThis.process = { env: {} };
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

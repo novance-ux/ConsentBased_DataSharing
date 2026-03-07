@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { authMiddleware } from '../middleware/auth.js'
 import { prisma } from '../lib/prisma.js'
 import { uploadToIpfs, fetchFromIpfs } from '../services/ipfs.js'
+import { logActionOnChain, LOG_ACTION, getExplorerTxUrl } from '../services/algorand.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -40,16 +41,35 @@ router.post('/upload', async (req, res, next) => {
       },
     })
 
+    // Log upload to on-chain access logger
+    let txnId: string | null = null
+    let explorerUrl: string | null = null
+    const uploader = await prisma.user.findUnique({ where: { id: userId } })
+    try {
+      const logResult = await logActionOnChain(
+        LOG_ACTION.UPLOAD,
+        uploader?.walletAddress || 'unknown',
+        cid,
+      )
+      if (logResult) {
+        txnId = logResult.txnId
+        explorerUrl = getExplorerTxUrl(logResult.txnId)
+      }
+    } catch (err) {
+      console.error('On-chain upload log failed:', err)
+    }
+
     await prisma.auditEntry.create({
       data: {
         userId,
         action: 'upload',
         resourceId: cid,
-        metadata: JSON.stringify({ fileName: data.fileName, category: data.category }),
+        txnId,
+        metadata: JSON.stringify({ fileName: data.fileName, category: data.category, explorerUrl }),
       },
     })
 
-    res.json({ success: true, data: { category }, error: null })
+    res.json({ success: true, data: { category, txnId, explorerUrl }, error: null })
   } catch (err) {
     next(err)
   }
@@ -86,10 +106,14 @@ router.get('/download/:categoryId', async (req, res, next) => {
           dataUploadId: categoryId,
           requesterId: userId,
           status: 'APPROVED',
+          OR: [
+            { requestedExpiry: null },
+            { requestedExpiry: { gt: new Date() } },
+          ],
         },
       })
       if (!hasConsent) {
-        res.status(403).json({ success: false, error: 'No valid consent', data: null })
+        res.status(403).json({ success: false, error: 'No valid consent or consent has expired', data: null })
         return
       }
     }
@@ -101,12 +125,31 @@ router.get('/download/:categoryId', async (req, res, next) => {
 
     const encryptedData = await fetchFromIpfs(category.ipfsCid)
 
+    // Log download to on-chain access logger
+    let txnId: string | null = null
+    let explorerUrl: string | null = null
+    const downloader = await prisma.user.findUnique({ where: { id: userId } })
+    try {
+      const logResult = await logActionOnChain(
+        LOG_ACTION.DOWNLOAD,
+        downloader?.walletAddress || 'unknown',
+        category.ipfsCid,
+      )
+      if (logResult) {
+        txnId = logResult.txnId
+        explorerUrl = getExplorerTxUrl(logResult.txnId)
+      }
+    } catch (err) {
+      console.error('On-chain download log failed:', err)
+    }
+
     await prisma.auditEntry.create({
       data: {
         userId,
         action: 'download',
         resourceId: category.ipfsCid,
-        metadata: JSON.stringify({ categoryId, fileName: category.fileName }),
+        txnId,
+        metadata: JSON.stringify({ categoryId, fileName: category.fileName, explorerUrl }),
       },
     })
 

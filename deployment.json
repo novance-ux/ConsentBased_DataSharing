@@ -1,0 +1,22 @@
+{
+  "network": "testnet",
+  "deployer": "53KINNQ6ORLKVBLW5DTLBCE6A2QRCZM3CB4VFYBXUUWCOUKVQHXFJNG7AY",
+  "timestamp": "2026-03-07",
+  "contracts": {
+    "CredentialIssuer": {
+      "appId": 756729714,
+      "txId": "APU7J5VW2LIDOKYHIN2GKX4W5UHILVWTKREVYDEMQU57RLIKMWCQ"
+    },
+    "ConsentManager": {
+      "appId": 756729717
+    },
+    "AccessLogger": {
+      "appId": 756729729
+    }
+  },
+  "explorerLinks": {
+    "CredentialIssuer": "https://lora.algokit.io/testnet/application/756729714",
+    "ConsentManager": "https://lora.algokit.io/testnet/application/756729717",
+    "AccessLogger": "https://lora.algokit.io/testnet/application/756729729"
+  }
+}

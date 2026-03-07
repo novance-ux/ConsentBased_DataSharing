@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { z } from 'zod'
 import { authMiddleware } from '../middleware/auth.js'
 import { prisma } from '../lib/prisma.js'
+import { grantConsentOnChain, revokeConsentOnChain, logActionOnChain, LOG_ACTION, getExplorerTxUrl } from '../services/algorand.js'
 
 const router = Router()
 router.use(authMiddleware)
@@ -14,6 +15,11 @@ const requestSchema = z.object({
 
 router.post('/request', async (req, res, next) => {
   try {
+    if (req.user!.role !== 'REQUESTER') {
+      res.status(403).json({ success: false, error: 'Requester access required', data: null })
+      return
+    }
+
     const data = requestSchema.parse(req.body)
     const requesterId = req.user!.sub
 
@@ -82,11 +88,58 @@ router.post('/grant/:requestId', async (req, res, next) => {
       return
     }
 
+    // Fetch the linked DataUpload to get the IPFS CID for the on-chain call
+    const upload = consentReq.dataUploadId
+      ? await prisma.dataUpload.findUnique({ where: { id: consentReq.dataUploadId } })
+      : null
+    const requester = await prisma.user.findUnique({ where: { id: consentReq.requesterId } })
+    const student = await prisma.user.findUnique({ where: { id: userId } })
+
+    let consentAsaId: string | null = null
+    let txnId: string | null = null
+    let explorerUrl: string | null = null
+
+    // Call ConsentManager smart contract on-chain
+    if (student?.walletAddress && requester?.walletAddress && upload?.ipfsCid) {
+      try {
+        const result = await grantConsentOnChain(
+          student.walletAddress,
+          requester.walletAddress,
+          upload.ipfsCid,
+          consentReq.dataCategory || 'general',
+          consentReq.requestedExpiry
+            ? Math.ceil((consentReq.requestedExpiry.getTime() - Date.now()) / 86400000)
+            : 30,
+        )
+        if (result) {
+          consentAsaId = result.consentAsaId.toString()
+          txnId = result.txnId
+          explorerUrl = getExplorerTxUrl(result.txnId)
+        }
+      } catch (err) {
+        console.error('On-chain consent grant failed, falling back to local:', err)
+      }
+    }
+
+    // Also log to on-chain access logger
+    try {
+      const logResult = await logActionOnChain(
+        LOG_ACTION.CONSENT_GRANT,
+        requester?.walletAddress || 'unknown',
+        upload?.ipfsCid || requestId,
+      )
+      if (logResult && !txnId) txnId = logResult.txnId
+    } catch (err) {
+      console.error('On-chain log failed:', err)
+    }
+
     const updated = await prisma.consentRequest.update({
       where: { id: requestId },
       data: {
         status: 'APPROVED',
         respondedAt: new Date(),
+        consentAsaId,
+        txnId,
       },
     })
 
@@ -95,11 +148,12 @@ router.post('/grant/:requestId', async (req, res, next) => {
         userId,
         action: 'consent_grant',
         resourceId: requestId,
-        metadata: JSON.stringify({ requesterId: consentReq.requesterId }),
+        txnId,
+        metadata: JSON.stringify({ requesterId: consentReq.requesterId, consentAsaId, explorerUrl }),
       },
     })
 
-    res.json({ success: true, data: { consentRequest: updated }, error: null })
+    res.json({ success: true, data: { consentRequest: updated, txnId, explorerUrl }, error: null })
   } catch (err) {
     next(err)
   }
@@ -119,9 +173,48 @@ router.post('/revoke/:requestId', async (req, res, next) => {
       return
     }
 
+    // Fetch related records for on-chain call
+    const upload = consentReq.dataUploadId
+      ? await prisma.dataUpload.findUnique({ where: { id: consentReq.dataUploadId } })
+      : null
+    const requester = await prisma.user.findUnique({ where: { id: consentReq.requesterId } })
+    const student = await prisma.user.findUnique({ where: { id: userId } })
+
+    let txnId: string | null = null
+    let explorerUrl: string | null = null
+
+    // Call ConsentManager.revoke_consent on-chain
+    if (student?.walletAddress && requester?.walletAddress && upload?.ipfsCid) {
+      try {
+        const result = await revokeConsentOnChain(
+          student.walletAddress,
+          requester.walletAddress,
+          upload.ipfsCid,
+        )
+        if (result) {
+          txnId = result.txnId
+          explorerUrl = getExplorerTxUrl(result.txnId)
+        }
+      } catch (err) {
+        console.error('On-chain consent revoke failed, falling back to local:', err)
+      }
+    }
+
+    // Also log to on-chain access logger
+    try {
+      const logResult = await logActionOnChain(
+        LOG_ACTION.CONSENT_REVOKE,
+        requester?.walletAddress || 'unknown',
+        upload?.ipfsCid || requestId,
+      )
+      if (logResult && !txnId) txnId = logResult.txnId
+    } catch (err) {
+      console.error('On-chain log failed:', err)
+    }
+
     const updated = await prisma.consentRequest.update({
       where: { id: requestId },
-      data: { status: 'REVOKED' },
+      data: { status: 'REVOKED', txnId },
     })
 
     await prisma.auditEntry.create({
@@ -129,11 +222,12 @@ router.post('/revoke/:requestId', async (req, res, next) => {
         userId,
         action: 'consent_revoke',
         resourceId: requestId,
-        metadata: JSON.stringify({ requesterId: consentReq.requesterId }),
+        txnId,
+        metadata: JSON.stringify({ requesterId: consentReq.requesterId, explorerUrl }),
       },
     })
 
-    res.json({ success: true, data: { consentRequest: updated }, error: null })
+    res.json({ success: true, data: { consentRequest: updated, txnId, explorerUrl }, error: null })
   } catch (err) {
     next(err)
   }

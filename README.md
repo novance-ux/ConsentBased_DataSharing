@@ -482,6 +482,89 @@ Demo mode:
 
 ---
 
+## Deploying Smart Contracts to Testnet
+
+The backend is wired to call all 3 smart contracts on-chain when contract App IDs are configured. Without them, the app runs in **local-only mode** (database only — great for demos).
+
+### Prerequisites
+
+1. **AlgoKit CLI** — Install from [https://developer.algorand.org/docs/get-details/algokit/](https://developer.algorand.org/docs/get-details/algokit/)
+2. **Python 3.11+** with pip
+3. **A funded Algorand Testnet account** — Get free ALGOs from [https://bank.testnet.algorand.network/](https://bank.testnet.algorand.network/)
+
+### Step 1: Install Python Dependencies
+
+```bash
+cd contracts
+pip install -e ".[dev]"
+```
+
+### Step 2: Set Deployer Mnemonic
+
+```bash
+# Linux/Mac
+export ALGO_DEPLOYER_MNEMONIC="your 25-word mnemonic here"
+
+# Windows PowerShell
+$env:ALGO_DEPLOYER_MNEMONIC = "your 25-word mnemonic here"
+```
+
+### Step 3: Deploy All Contracts
+
+```bash
+cd contracts
+python deploy.py
+```
+
+This will:
+- Compile all 3 contracts using AlgoKit
+- Deploy them to Algorand Testnet
+- Print the App IDs to copy into your `.env`
+- Save a `deployment.json` record
+
+### Step 4: Configure Backend
+
+Create or update `packages/backend/.env`:
+
+```env
+DATABASE_URL="file:./dev.db"
+JWT_SECRET="your-secret-key"
+
+# Algorand — paste the App IDs from deploy.py output
+CREDENTIAL_ISSUER_APP_ID=<from deployment>
+CONSENT_MANAGER_APP_ID=<from deployment>
+ACCESS_LOGGER_APP_ID=<from deployment>
+ADMIN_WALLET_ADDRESS=<your deployer address>
+ADMIN_WALLET_MNEMONIC=<your 25-word mnemonic>
+
+# Algorand node (defaults work for testnet)
+ALGORAND_ALGOD_SERVER=https://testnet-api.algonode.cloud
+ALGORAND_INDEXER_SERVER=https://testnet-idx.algonode.cloud
+```
+
+### What Happens On-Chain
+
+Once configured, every major action triggers a **real Algorand transaction**:
+
+| Action | Smart Contract | On-Chain Effect |
+|---|---|---|
+| Issue Credential | `CredentialIssuer` | Mints ARC-19 credential NFT |
+| Grant Consent | `ConsentManager` | Mints soulbound consent NFT, stores in box |
+| Revoke Consent | `ConsentManager` | Destroys consent NFT, deletes box entry |
+| Upload Data | `AccessLogger` | Appends immutable log entry |
+| Download Data | `AccessLogger` | Appends immutable log entry |
+
+Transaction IDs are stored in the database and displayed as clickable explorer links throughout the UI.
+
+### Graceful Fallback
+
+If any of the App ID environment variables are missing, the backend automatically falls back to **local-only mode** — everything works, but without blockchain transactions. This means:
+- Demo mode always works without any Algorand setup
+- You can incrementally deploy contracts as needed
+- Errors in on-chain calls don't break the application
+
+---
+
 ## DPDP Act Compliance
 
 This project demonstrates compliance with the **Digital Personal Data Protection (DPDP) Act** principles:
